@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/julienschmidt/httprouter"
+	"github.com/rs/zerolog"
 )
 
 type server struct {
-	router *httprouter.Router
+	router    *httprouter.Router
+	validator *validator.Validate
+	logger    *zerolog.Logger
 }
 
 // Run does magic things
@@ -26,7 +30,9 @@ func Run(args []string) int {
 
 	// Create server context object
 	s := server{
-		router: httprouter.New(),
+		router:    httprouter.New(),
+		validator: registerValidators(),
+		logger:    &appLogger,
 	}
 
 	s.routes(&appLogger)
