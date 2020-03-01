@@ -3,6 +3,7 @@ package apiserver
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/julienschmidt/httprouter"
@@ -13,6 +14,7 @@ type server struct {
 	router    *httprouter.Router
 	validator *validator.Validate
 	logger    *zerolog.Logger
+	http      *http.Server
 }
 
 // Run does magic things
@@ -26,20 +28,29 @@ func Run(args []string) int {
 		fmt.Printf("Oh noes! Something went horribly wrong!")
 		panic(err)
 	}
-	appLogger := *lgr
+	// appLogger := *lgr
 
-	// Create server context object
+	r := httprouter.New()
+
+	// Create server context struct
 	s := server{
-		router:    httprouter.New(),
-		validator: registerValidators(),
-		logger:    &appLogger,
+		router:    r,
+		validator: newValidator(),
+		logger:    lgr,
+		http: &http.Server{
+			ReadHeaderTimeout: 20 * time.Second,
+			ReadTimeout:       1 * time.Minute,
+			WriteTimeout:      2 * time.Minute,
+			Addr:              ":8080",
+			Handler:           r,
+		},
 	}
 
-	s.routes(&appLogger)
+	s.routes(lgr)
 
-	appLogger.Info().Msg("Atlas API server starting...")
-	if err := http.ListenAndServe(":8080", s.router); err != nil {
-		appLogger.Fatal().Err(err).Msg("API Startup failed")
+	lgr.Info().Msg("Atlas API server starting...")
+	if err := s.http.ListenAndServe(); err != nil {
+		lgr.Fatal().Err(err).Msg("API Startup failed")
 	}
 
 	return 0

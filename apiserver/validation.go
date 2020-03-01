@@ -19,7 +19,7 @@ func validateURI(fl validator.FieldLevel) bool {
 	return re.MatchString(fl.Field().String())
 }
 
-func registerValidators() *validator.Validate {
+func newValidator() *validator.Validate {
 	validate = validator.New()
 	validate.RegisterValidation("is-uri", validateURI)
 	//validate.RegisterValidation("is-url", validateURL)
