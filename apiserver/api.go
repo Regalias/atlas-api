@@ -3,8 +3,10 @@ package apiserver
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/rs/xid"
 	"github.com/rs/zerolog/hlog"
 )
 
@@ -55,8 +57,22 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 		// Debug: remove
 		fmt.Printf("\n%+v\n", req)
 
+		guid := xid.New()
+
+		newLink := &linkModel{
+			LinkID:         guid.String(),
+			CanonicalName:  req.CanonicalName,
+			URI:            req.URI,
+			TargetURL:      req.TargetURL,
+			Created:        time.Now().Unix(),
+			LastModified:   time.Now().Unix(),
+			LastModifiedBy: "some-user", // TODO
+		}
+		// Debug
+		fmt.Printf("\n%+v\n", newLink)
+
 		resp := &responseModel{
-			LinkID:        "abcd",
+			LinkID:        guid.String(),
 			CanonicalName: req.CanonicalName,
 			URI:           req.URI,
 			TargetURL:     req.TargetURL,
