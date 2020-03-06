@@ -1,10 +1,7 @@
 package apiserver
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -34,13 +31,13 @@ func (s *server) handleListLinks() http.HandlerFunc {
 
 func (s *server) handleCreateLink() http.HandlerFunc {
 
-	type createLinkRequest struct {
+	type requestModel struct {
 		CanonicalName string `json:"canonicalName" validate:"required,min=3,max=50,alphanumunicode"`
 		URI           string `json:"URI" validate:"required,min=3,max=50,is-uri"`
 		TargetURL     string `json:"targetURL" validate:"required,min=3,max=500,url"`
 	}
 
-	type response struct {
+	type responseModel struct {
 		LinkID        string `json:"linkID"`
 		CanonicalName string `json:"canonicalName"`
 		URI           string `json:"URI"`
@@ -48,28 +45,24 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			io.WriteString(w, http.StatusText(400))
-			return
-		}
 
-		var rq *createLinkRequest
-		if err := json.Unmarshal(body, &rq); err != nil {
-			sendGenericResponse(w, r, http.StatusText(400), "None", http.StatusBadRequest)
-			return
-		}
-
-		errMsg, err := s.validateModel(rq)
+		var req requestModel
+		err := s.getRequest(w, r, &req)
 		if err != nil {
-			sendErrorResponse(w, r, "InvalidParameters", errMsg, http.StatusBadRequest)
 			return
 		}
 
 		// Debug: remove
-		fmt.Printf("\n%+v\n", rq)
+		fmt.Printf("\n%+v\n", req)
 
-		sendGenericResponse(w, r, "None", "ok", 200)
+		resp := &responseModel{
+			LinkID:        "abcd",
+			CanonicalName: req.CanonicalName,
+			URI:           req.URI,
+			TargetURL:     req.TargetURL,
+		}
+
+		sendGenericResponse(w, r, "None", resp, 200)
 	}
 }
 

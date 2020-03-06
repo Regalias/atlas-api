@@ -13,7 +13,7 @@ import (
 func appHeaders(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		w.Header().Set("Server", "atlas-linker")
+		w.Header().Set("Server", "atlas-api")
 		w.Header().Set("content-type", "application/json")
 		h.ServeHTTP(w, r)
 	})

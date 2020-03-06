@@ -3,44 +3,19 @@ package apiserver
 import (
 	"encoding/json"
 	"io"
+	"io/ioutil"
 	"net/http"
-	"net/url"
 
 	"github.com/rs/zerolog/hlog"
 )
 
-func isURL(str string) bool {
-	u, err := url.Parse(str)
-	return err == nil && u.Scheme != "" && u.Host != ""
-}
+// No longer used
+// func isURL(str string) bool {
+// 	u, err := url.Parse(str)
+// 	return err == nil && u.Scheme != "" && u.Host != ""
+// }
 
-func sendGenericResponse(w http.ResponseWriter, r *http.Request, errMsg string, details string, code int) {
-
-	// For generic interface in details
-	// switch details.(type) {
-	// case string:
-	// 	details = details.(string)
-	// case []byte:
-	// 	details = details.([]byte)
-	// default:
-	// 	s.logger.Fatal().Str("traceMethod", "sendGenericResponse").Msg("Invalid type passed into function")
-	// }
-	resp, err := json.Marshal(genericResponse{
-		Error:   errMsg,
-		Details: details,
-	})
-	if err != nil {
-		// We really shouldn't get here... throw a 500 ISE
-		hlog.FromRequest(r).Error().Err(err).Msg("")
-		io.WriteString(w, http.StatusText(500))
-	} else {
-		w.WriteHeader(code)
-		w.Write(resp)
-	}
-	return
-}
-
-func sendErrorResponse(w http.ResponseWriter, r *http.Request, errMsg string, details interface{}, code int) {
+func sendGenericResponse(w http.ResponseWriter, r *http.Request, errMsg string, details interface{}, code int) {
 
 	type errorResponse struct {
 		Error   string      `json:"error"`
@@ -60,4 +35,25 @@ func sendErrorResponse(w http.ResponseWriter, r *http.Request, errMsg string, de
 		w.Write(resp)
 	}
 	return
+}
+
+// getRequest takes in an arbitrary struct, attempts to read the request, marshal the request into the struct, and perform validation
+func (s *server) getRequest(w http.ResponseWriter, r *http.Request, model interface{}) error {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		io.WriteString(w, http.StatusText(400))
+		return err
+	}
+
+	if err := json.Unmarshal(body, model); err != nil {
+		sendGenericResponse(w, r, http.StatusText(400), "None", http.StatusBadRequest)
+		return err
+	}
+
+	errMsg, err := s.validateModel(model)
+	if err != nil {
+		sendGenericResponse(w, r, "InvalidParameters", errMsg, http.StatusBadRequest)
+		return err
+	}
+	return nil
 }
