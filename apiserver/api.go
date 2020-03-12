@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-redis/redis/v7"
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/xid"
 	"github.com/rs/zerolog/hlog"
@@ -15,11 +16,20 @@ import (
 func (s *server) handleGetLink() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse link
-		slinkParam := httprouter.ParamsFromContext(r.Context()).ByName("slink")
+		linkID := httprouter.ParamsFromContext(r.Context()).ByName("linkid")
 
 		// TODO: query db for link details
-		hlog.FromRequest(r).Debug().Msg("Requested link: " + slinkParam)
-		sendGenericResponse(w, r, "None", "ok", 200)
+		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkID)
+
+		m, err := s.dataProvider.GetLinkDetails(linkID)
+		if err == redis.Nil {
+			sendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
+			return
+		} else if err != nil {
+			throwISE(w, r)
+			return
+		}
+		sendGenericResponse(w, r, "None", m, 200)
 	}
 }
 
@@ -35,22 +45,21 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 
 	type requestModel struct {
 		CanonicalName string `json:"canonicalName" validate:"required,min=3,max=50,alphanumunicode"`
-		URI           string `json:"URI" validate:"required,min=3,max=50,is-uri"`
+		LinkPath      string `json:"linkPath" validate:"required,min=3,max=50,is-uri-path"`
 		TargetURL     string `json:"targetURL" validate:"required,min=3,max=500,url"`
 	}
 
 	type responseModel struct {
 		LinkID        string `json:"linkID"`
 		CanonicalName string `json:"canonicalName"`
-		URI           string `json:"URI"`
+		LinkPath      string `json:"linkPath"`
 		TargetURL     string `json:"targetURL"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		var req requestModel
-		err := s.getRequest(w, r, &req)
-		if err != nil {
+		if err := s.getRequest(w, r, &req); err != nil {
 			return
 		}
 
@@ -59,10 +68,10 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 
 		guid := xid.New()
 
-		newLink := &linkModel{
+		newLink := &LinkModel{
 			LinkID:         guid.String(),
 			CanonicalName:  req.CanonicalName,
-			URI:            req.URI,
+			LinkPath:       req.LinkPath,
 			TargetURL:      req.TargetURL,
 			Created:        time.Now().Unix(),
 			LastModified:   time.Now().Unix(),
@@ -71,10 +80,17 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 		// Debug
 		fmt.Printf("\n%+v\n", newLink)
 
+		if err := s.dataProvider.CreateLink(newLink); err != nil {
+			s.logger.Error().Str("Error", err.Error()).Msg("Could not insert new entry")
+			// sendGenericResponse(w, r, http.StatusText(http.StatusInternalServerError), "None", http.StatusInternalServerError)
+			throwISE(w, r)
+			return
+		}
+
 		resp := &responseModel{
 			LinkID:        guid.String(),
 			CanonicalName: req.CanonicalName,
-			URI:           req.URI,
+			LinkPath:      req.LinkPath,
 			TargetURL:     req.TargetURL,
 		}
 

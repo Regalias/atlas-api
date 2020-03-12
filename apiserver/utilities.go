@@ -57,3 +57,8 @@ func (s *server) getRequest(w http.ResponseWriter, r *http.Request, model interf
 	}
 	return nil
 }
+
+func throwISE(w http.ResponseWriter, r *http.Request) {
+	sendGenericResponse(w, r, http.StatusText(http.StatusInternalServerError), "None", http.StatusInternalServerError)
+	return
+}

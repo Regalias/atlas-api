@@ -5,10 +5,11 @@ type genericResponse struct {
 	Details string `json:"details"`
 }
 
-type linkModel struct {
+// LinkModel is a model of saved links
+type LinkModel struct {
 	LinkID        string `json:"linkID"`
 	CanonicalName string `json:"canonicalName"`
-	URI           string `json:"URI"`
+	LinkPath      string `json:"URI"`
 	TargetURL     string `json:"targetURL"`
 	// Audit info
 	Created        int64  `json:"created"`

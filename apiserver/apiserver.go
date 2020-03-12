@@ -7,14 +7,17 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/julienschmidt/httprouter"
+
+	// dataprovider "github.com/regalias/atlas-api/apiserver/providers"
 	"github.com/rs/zerolog"
 )
 
 type server struct {
-	router    *httprouter.Router
-	validator *validator.Validate
-	logger    *zerolog.Logger
-	http      *http.Server
+	router       *httprouter.Router
+	validator    *validator.Validate
+	logger       *zerolog.Logger
+	http         *http.Server
+	dataProvider *DataProvider
 }
 
 // Run does magic things
@@ -31,6 +34,14 @@ func Run(args []string) int {
 	// appLogger := *lgr
 
 	r := httprouter.New()
+	d, err := NewDataProvider(lgr)
+	if err != nil {
+		lgr.Fatal().Str("Error", err.Error()).Msg("Could not initialize database/cache providers")
+	}
+	// TODO: grab table name from config
+	if err := d.ensureTable("atlas-table-main"); err != nil {
+		lgr.Fatal().Str("Error", err.Error()).Msg("DDB table was not found and could not create required table")
+	}
 
 	// Create server context struct
 	s := server{
@@ -44,6 +55,7 @@ func Run(args []string) int {
 			Addr:              ":8080",
 			Handler:           r,
 		},
+		dataProvider: d,
 	}
 
 	s.routes(lgr)

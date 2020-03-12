@@ -21,7 +21,7 @@ func validateURI(fl validator.FieldLevel) bool {
 
 func newValidator() *validator.Validate {
 	validate = validator.New()
-	validate.RegisterValidation("is-uri", validateURI)
+	validate.RegisterValidation("is-uri-path", validateURI)
 	//validate.RegisterValidation("is-url", validateURL)
 	return validate
 }
