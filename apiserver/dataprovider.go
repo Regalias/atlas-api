@@ -32,13 +32,13 @@ func NewDataProvider(logger *zerolog.Logger, tableName string) (*DataProvider, e
 	return dp, nil
 }
 
-// GetLinkDetails fetches the link details based on a link ID
-func (dp *DataProvider) GetLinkDetails(linkid string) (*LinkModel, error) {
+// GetLinkDetails fetches the link details based on a link path
+func (dp *DataProvider) GetLinkDetails(linkpath string) (*LinkModel, error) {
 	resp, err := dp.ddb.GetItem(&dynamodb.GetItemInput{
 		TableName: aws.String(dp.tableName),
 		Key: map[string]*dynamodb.AttributeValue{
-			"LinkID": {
-				S: aws.String(linkid),
+			"LinkPath": {
+				S: aws.String(linkpath),
 			},
 		},
 	})
@@ -71,7 +71,7 @@ func (dp *DataProvider) GetLinkDetails(linkid string) (*LinkModel, error) {
 		return nil, err
 	}
 
-	if lm.LinkID == "" {
+	if lm.LinkPath == "" {
 		return nil, errors.New("NotFound")
 	}
 
@@ -80,33 +80,61 @@ func (dp *DataProvider) GetLinkDetails(linkid string) (*LinkModel, error) {
 
 // CreateLink creates a new link from the supplied model
 func (dp *DataProvider) CreateLink(linkmodel *LinkModel) error {
-	link, err := dynamodbattribute.MarshalMap(linkmodel)
+	link, err := dynamodbattribute.MarshalMap(*linkmodel)
+	// fmt.Printf("%+v\n", link)
 	if err != nil {
 		dp.logger.Error().Msg("DDB Marshal Failed: " + err.Error())
 		return err
 	}
 
 	_, err = dp.ddb.PutItem(&dynamodb.PutItemInput{
-		Item:      link,
-		TableName: aws.String(dp.tableName),
+		Item:                link,
+		TableName:           aws.String(dp.tableName),
+		ConditionExpression: aws.String("attribute_not_exists(LinkPath)"), // must be unique
 	})
+
 	if err != nil {
-		dp.logger.Error().Msg("DDB PutItem Failed: " + err.Error())
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case dynamodb.ErrCodeConditionalCheckFailedException:
+				dp.logger.Error().Msg(dynamodb.ErrCodeConditionalCheckFailedException + ":" + aerr.Error())
+				// Not unique
+				return errors.New("AlreadyExists")
+			case dynamodb.ErrCodeProvisionedThroughputExceededException:
+				dp.logger.Error().Msg(dynamodb.ErrCodeProvisionedThroughputExceededException + ":" + aerr.Error())
+			case dynamodb.ErrCodeResourceNotFoundException:
+				dp.logger.Error().Msg(dynamodb.ErrCodeResourceNotFoundException + ":" + aerr.Error())
+			case dynamodb.ErrCodeItemCollectionSizeLimitExceededException:
+				dp.logger.Error().Msg(dynamodb.ErrCodeItemCollectionSizeLimitExceededException + ":" + aerr.Error())
+			case dynamodb.ErrCodeTransactionConflictException:
+				dp.logger.Error().Msg(dynamodb.ErrCodeTransactionConflictException + ":" + aerr.Error())
+			case dynamodb.ErrCodeRequestLimitExceeded:
+				dp.logger.Error().Msg(dynamodb.ErrCodeRequestLimitExceeded + ":" + aerr.Error())
+			case dynamodb.ErrCodeInternalServerError:
+				dp.logger.Error().Msg(dynamodb.ErrCodeInternalServerError + ":" + aerr.Error())
+			default:
+				dp.logger.Error().Msg("DDB PutItem Failed: " + aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			dp.logger.Error().Msg("DDB PutItem Failed: " + err.Error())
+		}
 	}
 	return err
 }
 
-// DeleteLink deletes the link matching the link ID in the supplied model
-func (dp *DataProvider) DeleteLink(linkid string) error {
+// DeleteLink deletes the link matching the link path in the supplied model
+func (dp *DataProvider) DeleteLink(linkpath string) error {
 	// DeleteItem is idempotent - need to specify a condition that it must exist to be successful
 	_, err := dp.ddb.DeleteItem(&dynamodb.DeleteItemInput{
 		TableName: aws.String(dp.tableName),
 		Key: map[string]*dynamodb.AttributeValue{
-			"LinkID": {
-				S: aws.String(linkid),
+			"LinkPath": {
+				S: aws.String(linkpath),
 			},
 		},
-		ConditionExpression: aws.String("LinkID = " + linkid),
+		ConditionExpression: aws.String("LinkPath = " + linkpath),
 	})
 
 	if err != nil {
@@ -125,11 +153,11 @@ func (dp *DataProvider) DeleteLink(linkid string) error {
 	return err
 }
 
-// UpdateLink updates the existing link matching the link ID in the supplied model
+// UpdateLink updates the existing link matching the link path in the supplied model
 func (dp *DataProvider) UpdateLink(linkmodel *LinkModel) error {
 
 	// Query the existing link to check for existance and differences
-	res, err := dp.GetLinkDetails(linkmodel.LinkID)
+	res, err := dp.GetLinkDetails(linkmodel.LinkPath)
 	if err != nil {
 		return err
 	} // pass back upstream error
@@ -142,17 +170,14 @@ func (dp *DataProvider) UpdateLink(linkmodel *LinkModel) error {
 		TableName:    aws.String(dp.tableName),
 		ReturnValues: aws.String("NONE"),
 		UpdateExpression: aws.String("set " +
-			"LinkID = :li, " +
 			"CanonicalName = :cn, " +
 			"LinkPath = :lp, " +
 			"TargetURL = :tu, " +
+			"Enabled= :en, " +
 			"LastModified = :lm, " +
 			"LastModifiedBy = :lmb",
 		),
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
-			":li": {
-				S: aws.String(linkmodel.LinkID),
-			},
 			":lp": {
 				S: aws.String(linkmodel.LinkPath),
 			},
@@ -168,8 +193,11 @@ func (dp *DataProvider) UpdateLink(linkmodel *LinkModel) error {
 			":lmb": {
 				S: aws.String(linkmodel.LastModifiedBy),
 			},
+			":en": {
+				BOOL: aws.Bool(linkmodel.Enabled),
+			},
 		},
-		ConditionExpression: aws.String("LinkID = :li"),
+		ConditionExpression: aws.String("LinkPath = :lp"),
 	}
 
 	_, err = dp.ddb.UpdateItem(input)

@@ -47,7 +47,7 @@ func (dp *DataProvider) createTable(tableName string) error {
 	input := &dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{
 			{
-				AttributeName: aws.String("LinkID"),
+				AttributeName: aws.String("LinkPath"),
 				AttributeType: aws.String("S"),
 			},
 			// {
@@ -65,7 +65,7 @@ func (dp *DataProvider) createTable(tableName string) error {
 		},
 		KeySchema: []*dynamodb.KeySchemaElement{
 			{
-				AttributeName: aws.String("LinkID"),
+				AttributeName: aws.String("LinkPath"),
 				KeyType:       aws.String("HASH"),
 			},
 			// {

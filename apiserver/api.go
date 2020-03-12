@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/rs/xid"
 	"github.com/rs/zerolog/hlog"
 )
 
@@ -15,11 +14,11 @@ import (
 func (s *server) handleGetLink() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse link id
-		linkID := httprouter.ParamsFromContext(r.Context()).ByName("linkid")
+		linkPath := httprouter.ParamsFromContext(r.Context()).ByName("linkpath")
 
-		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkID)
+		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkPath)
 
-		m, err := s.dataProvider.GetLinkDetails(linkID)
+		m, err := s.dataProvider.GetLinkDetails(linkPath)
 		if err.Error() == "NotFound" {
 			sendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
 			return
@@ -33,7 +32,7 @@ func (s *server) handleGetLink() http.HandlerFunc {
 
 func (s *server) handleListLinks() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sendGenericResponse(w, r, "None", "ok", 200)
+		sendGenericResponse(w, r, "None", "ok", http.StatusNotImplemented)
 	}
 }
 
@@ -41,22 +40,16 @@ func (s *server) handleListLinks() http.HandlerFunc {
 
 func (s *server) handleCreateLink() http.HandlerFunc {
 
-	type requestModel struct {
-		CanonicalName string `json:"canonicalName" validate:"required,min=3,max=50,alphanumunicode"`
-		LinkPath      string `json:"linkPath" validate:"required,min=3,max=50,is-uri-path"`
-		TargetURL     string `json:"targetURL" validate:"required,min=3,max=500,url"`
-	}
-
-	type responseModel struct {
-		LinkID        string `json:"linkID"`
-		CanonicalName string `json:"canonicalName"`
-		LinkPath      string `json:"linkPath"`
-		TargetURL     string `json:"targetURL"`
+	type requestResponseModel struct {
+		LinkPath      string `json:"LinkPath" validate:"required,min=3,max=50,is-uri-path"`
+		CanonicalName string `json:"CanonicalName" validate:"required,min=3,max=50,alphanumunicode"`
+		TargetURL     string `json:"TargetURL" validate:"required,min=3,max=500,url"`
+		Enabled       bool   `json:"Enabled" validate:"omitempty"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		var req requestModel
+		var req requestResponseModel
 		if err := s.getRequest(w, r, &req); err != nil {
 			return
 		}
@@ -64,34 +57,40 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 		// Debug: remove
 		fmt.Printf("\n%+v\n", req)
 
-		guid := xid.New()
+		// guid := xid.New()
 
 		newLink := &LinkModel{
-			LinkID:         guid.String(),
-			CanonicalName:  req.CanonicalName,
+			// LinkID:         guid.String(),
 			LinkPath:       req.LinkPath,
+			CanonicalName:  req.CanonicalName,
 			TargetURL:      req.TargetURL,
 			CreatedTime:    time.Now().Unix(),
 			LastModified:   time.Now().Unix(),
 			LastModifiedBy: "some-user", // TODO
+			Enabled:        req.Enabled,
 		}
 		// Debug
-		fmt.Printf("\n%+v\n", newLink)
+		// fmt.Printf("\n%+v\n", newLink)
 
 		if err := s.dataProvider.CreateLink(newLink); err != nil {
-			s.logger.Error().Str("Error", err.Error()).Msg("Could not insert new entry")
-			// sendGenericResponse(w, r, http.StatusText(http.StatusInternalServerError), "None", http.StatusInternalServerError)
-			throwISE(w, r)
+			if err.Error() == "AlreadyExists" {
+				sendGenericResponse(w, r, "ParameterError", "Specfied LinkPath is already in use", 400)
+			} else {
+				s.logger.Error().Str("Error", err.Error()).Msg("Could not insert new entry")
+				// sendGenericResponse(w, r, http.StatusText(http.StatusInternalServerError), "None", http.StatusInternalServerError)
+				throwISE(w, r)
+			}
 			return
 		}
 
 		// TODO: also push to redis cache server?
 
-		resp := &responseModel{
-			LinkID:        guid.String(),
+		resp := &requestResponseModel{
+			// LinkID:        guid.String(),
 			CanonicalName: req.CanonicalName,
 			LinkPath:      req.LinkPath,
 			TargetURL:     req.TargetURL,
+			Enabled:       req.Enabled,
 		}
 
 		sendGenericResponse(w, r, "None", resp, http.StatusCreated)
@@ -100,10 +99,11 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 
 func (s *server) handleUpdateLink() http.HandlerFunc {
 	type requestResponseModel struct {
-		LinkID        string `json:"linkID" validate:"required,min=3,max=50"`
-		CanonicalName string `json:"canonicalName" validate:"required,min=3,max=50,alphanumunicode"`
-		LinkPath      string `json:"linkPath" validate:"required,min=3,max=50,is-uri-path"`
-		TargetURL     string `json:"targetURL" validate:"required,min=3,max=500,url"`
+		// LinkID        string `json:"LinkID" validate:"required,min=3,max=50"`
+		CanonicalName string `json:"CanonicalName" validate:"required,min=3,max=50,alphanumunicode"`
+		LinkPath      string `json:"LinkPath" validate:"required,min=3,max=50,is-uri-path"`
+		TargetURL     string `json:"TargetURL" validate:"required,min=3,max=500,url"`
+		Enabled       bool   `json:"Enabled" validate:"required"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -114,12 +114,13 @@ func (s *server) handleUpdateLink() http.HandlerFunc {
 		}
 
 		newLink := &LinkModel{
-			LinkID:         req.LinkID,
+			// LinkID:         req.LinkID,
 			CanonicalName:  req.CanonicalName,
 			LinkPath:       req.LinkPath,
 			TargetURL:      req.TargetURL,
 			LastModified:   time.Now().Unix(),
 			LastModifiedBy: "some-user", // TODO
+			Enabled:        req.Enabled,
 			// Don't modify creation timestamp!
 		}
 
@@ -142,11 +143,11 @@ func (s *server) handleUpdateLink() http.HandlerFunc {
 func (s *server) handleDeleteLink() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse link id
-		linkID := httprouter.ParamsFromContext(r.Context()).ByName("linkid")
+		linkPath := httprouter.ParamsFromContext(r.Context()).ByName("linkpath")
 
-		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkID)
+		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkPath)
 
-		err := s.dataProvider.DeleteLink(linkID)
+		err := s.dataProvider.DeleteLink(linkPath)
 		if err.Error() == "NotFound" {
 			sendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
 			return
