@@ -3,6 +3,7 @@ package apiserver
 import (
 	"os"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -30,7 +31,10 @@ func initLogger(level string) (*zerolog.Logger, error) {
 		return nil, err
 	}
 
-	appLogger := zerolog.New(os.Stdout).With().
+	// FOR DEBUG
+	stream := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
+
+	appLogger := zerolog.New(stream).With().
 		Timestamp().
 		Str("svc", "linker-api").
 		Str("host", host).

@@ -103,7 +103,7 @@ func (s *server) handleUpdateLink() http.HandlerFunc {
 		CanonicalName string `json:"CanonicalName" validate:"required,min=3,max=50,alphanumunicode"`
 		LinkPath      string `json:"LinkPath" validate:"required,min=3,max=50,is-uri-path"`
 		TargetURL     string `json:"TargetURL" validate:"required,min=3,max=500,url"`
-		Enabled       bool   `json:"Enabled" validate:"required"`
+		Enabled       bool   `json:"Enabled"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -121,6 +121,7 @@ func (s *server) handleUpdateLink() http.HandlerFunc {
 			LastModified:   time.Now().Unix(),
 			LastModifiedBy: "some-user", // TODO
 			Enabled:        req.Enabled,
+			CreatedTime:    1337,
 			// Don't modify creation timestamp!
 		}
 
@@ -148,13 +149,16 @@ func (s *server) handleDeleteLink() http.HandlerFunc {
 		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkPath)
 
 		err := s.dataProvider.DeleteLink(linkPath)
-		if err.Error() == "NotFound" {
-			sendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
-			return
-		} else if err != nil {
-			throwISE(w, r)
-			return
+		if err != nil {
+			if err.Error() == "NotFound" {
+				sendGenericResponse(w, r, "NotFound", "Resource not found", 404)
+				return
+			} else if err != nil {
+				throwISE(w, r)
+				return
+			}
 		}
+
 		// TODO: Purge the redis cache!
 		sendGenericResponse(w, r, "None", http.StatusText(http.StatusOK), 200)
 	}

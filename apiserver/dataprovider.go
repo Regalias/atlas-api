@@ -134,7 +134,12 @@ func (dp *DataProvider) DeleteLink(linkpath string) error {
 				S: aws.String(linkpath),
 			},
 		},
-		ConditionExpression: aws.String("LinkPath = " + linkpath),
+		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
+			":lp": {
+				S: aws.String(linkpath),
+			},
+		},
+		ConditionExpression: aws.String("LinkPath = :lp"),
 	})
 
 	if err != nil {
@@ -159,24 +164,37 @@ func (dp *DataProvider) UpdateLink(linkmodel *LinkModel) error {
 	// Query the existing link to check for existance and differences
 	res, err := dp.GetLinkDetails(linkmodel.LinkPath)
 	if err != nil {
-		return err
-	} // pass back upstream error
+		return err // pass back upstream error
+	}
+
 	if checkLinkModelsAreEqual(linkmodel, res) {
 		// Models are same, no changes required!
 		return errors.New("NoChange")
 	}
 
+	// link, err := dynamodbattribute.MarshalMap(*linkmodel)
+	// if err != nil {
+	// 	dp.logger.Error().Msg("DDB Marshal Failed: " + err.Error())
+	// 	return err
+	// }
+
+	link := map[string]*dynamodb.AttributeValue{
+		"LinkPath": {S: aws.String(linkmodel.LinkPath)},
+	}
+
+	// fmt.Printf("%+v\n", link)
+
 	input := &dynamodb.UpdateItemInput{
-		TableName:    aws.String(dp.tableName),
-		ReturnValues: aws.String("NONE"),
-		UpdateExpression: aws.String("set " +
-			"CanonicalName = :cn, " +
-			"LinkPath = :lp, " +
-			"TargetURL = :tu, " +
-			"Enabled= :en, " +
-			"LastModified = :lm, " +
-			"LastModifiedBy = :lmb",
-		),
+		ExpressionAttributeNames: map[string]*string{
+			"#CN":  aws.String("CanonicalName"),
+			"#TU":  aws.String("TargetURL"),
+			"#EN":  aws.String("Enabled"),
+			"#LM":  aws.String("LastModified"),
+			"#LMB": aws.String("LastModifiedBy"),
+		},
+		TableName:        aws.String(dp.tableName),
+		ReturnValues:     aws.String("NONE"),
+		UpdateExpression: aws.String("set #CN = :cn, #TU = :tu, #EN = :en, #LM = :lm, #LMB = :lmb"),
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
 			":lp": {
 				S: aws.String(linkmodel.LinkPath),
@@ -197,7 +215,8 @@ func (dp *DataProvider) UpdateLink(linkmodel *LinkModel) error {
 				BOOL: aws.Bool(linkmodel.Enabled),
 			},
 		},
-		ConditionExpression: aws.String("LinkPath = :lp"),
+		ConditionExpression: aws.String("LinkPath = :lp"), // TODO: this does not quite work
+		Key:                 link,
 	}
 
 	_, err = dp.ddb.UpdateItem(input)
