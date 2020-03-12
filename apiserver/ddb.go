@@ -8,8 +8,9 @@ import (
 )
 
 func newAWSSession() *session.Session {
-	sess := session.Must(session.NewSession())
-	return sess
+	return session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
 }
 
 // ensureTable attempts to describe the requested table, and creates one if it doesn't exist
@@ -25,10 +26,7 @@ func (dp *DataProvider) ensureTable() error {
 				dp.logger.Debug().Msg(dynamodb.ErrCodeResourceNotFoundException + ":" + aerr.Error())
 				// Table doesn't exist, lets create it
 				dp.logger.Info().Msg("Table " + dp.tableName + " not found, creating it now...")
-				if err := dp.createTable(dp.tableName); err != nil {
-					return err
-				}
-
+				return dp.createTable(dp.tableName)
 			case dynamodb.ErrCodeInternalServerError:
 				dp.logger.Error().Msg(dynamodb.ErrCodeInternalServerError + ":" + aerr.Error())
 			default:
@@ -52,18 +50,18 @@ func (dp *DataProvider) createTable(tableName string) error {
 				AttributeName: aws.String("LinkID"),
 				AttributeType: aws.String("S"),
 			},
-			{
-				AttributeName: aws.String("LinkPath"),
-				AttributeType: aws.String("S"),
-			},
-			{
-				AttributeName: aws.String("TargetURL"),
-				AttributeType: aws.String("S"),
-			},
-			{
-				AttributeName: aws.String("CreatedTime"),
-				AttributeType: aws.String("N"),
-			},
+			// {
+			// 	AttributeName: aws.String("LinkPath"),
+			// 	AttributeType: aws.String("S"),
+			// },
+			// {
+			// 	AttributeName: aws.String("TargetURL"),
+			// 	AttributeType: aws.String("S"),
+			// },
+			// {
+			// 	AttributeName: aws.String("CreatedTime"),
+			// 	AttributeType: aws.String("N"),
+			// },
 		},
 		KeySchema: []*dynamodb.KeySchemaElement{
 			{

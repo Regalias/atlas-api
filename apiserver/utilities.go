@@ -62,3 +62,10 @@ func throwISE(w http.ResponseWriter, r *http.Request) {
 	sendGenericResponse(w, r, http.StatusText(http.StatusInternalServerError), "None", http.StatusInternalServerError)
 	return
 }
+
+func checkLinkModelsAreEqual(lm1 *LinkModel, lm2 *LinkModel) bool {
+	if (lm1.CanonicalName != lm2.CanonicalName) || (lm1.LinkPath != lm2.LinkPath) || (lm1.LinkID != lm2.LinkID) || (lm1.TargetURL != lm2.TargetURL) {
+		return false
+	}
+	return true
+}

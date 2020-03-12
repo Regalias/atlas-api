@@ -99,8 +99,43 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 }
 
 func (s *server) handleUpdateLink() http.HandlerFunc {
+	type requestResponseModel struct {
+		LinkID        string `json:"linkID" validate:"required,min=3,max=50"`
+		CanonicalName string `json:"canonicalName" validate:"required,min=3,max=50,alphanumunicode"`
+		LinkPath      string `json:"linkPath" validate:"required,min=3,max=50,is-uri-path"`
+		TargetURL     string `json:"targetURL" validate:"required,min=3,max=500,url"`
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		sendGenericResponse(w, r, "None", http.StatusText(http.StatusNotModified), http.StatusNotModified)
+
+		var req requestResponseModel
+		if err := s.getRequest(w, r, &req); err != nil {
+			return
+		}
+
+		newLink := &LinkModel{
+			LinkID:         req.LinkID,
+			CanonicalName:  req.CanonicalName,
+			LinkPath:       req.LinkPath,
+			TargetURL:      req.TargetURL,
+			LastModified:   time.Now().Unix(),
+			LastModifiedBy: "some-user", // TODO
+			// Don't modify creation timestamp!
+		}
+
+		if err := s.dataProvider.UpdateLink(newLink); err != nil {
+			if err.Error() == "NotFound" {
+				sendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
+				return
+			} else if err.Error() == "NoChange" {
+				sendGenericResponse(w, r, "None", http.StatusText(http.StatusNotModified), http.StatusNotModified)
+			} else if err != nil {
+				throwISE(w, r)
+				return
+			}
+		}
+		// TODO: update redis cache!
+		sendGenericResponse(w, r, "None", req, http.StatusOK)
 	}
 }
 
@@ -119,6 +154,7 @@ func (s *server) handleDeleteLink() http.HandlerFunc {
 			throwISE(w, r)
 			return
 		}
+		// TODO: Purge the redis cache!
 		sendGenericResponse(w, r, "None", http.StatusText(http.StatusOK), 200)
 	}
 }
