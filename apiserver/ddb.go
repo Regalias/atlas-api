@@ -45,31 +45,41 @@ func (dp *DataProvider) ensureTable(tableName string) error {
 
 // createTable creates the target DDB table with the required schema
 func (dp *DataProvider) createTable(tableName string) error {
+	// TODO: configure created table options from config?
 	input := &dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{
 			{
-				AttributeName: aws.String("Artist"),
+				AttributeName: aws.String("LinkID"),
 				AttributeType: aws.String("S"),
 			},
 			{
-				AttributeName: aws.String("SongTitle"),
+				AttributeName: aws.String("LinkPath"),
 				AttributeType: aws.String("S"),
+			},
+			{
+				AttributeName: aws.String("TargetURL"),
+				AttributeType: aws.String("S"),
+			},
+			{
+				AttributeName: aws.String("CreatedTime"),
+				AttributeType: aws.String("N"),
 			},
 		},
 		KeySchema: []*dynamodb.KeySchemaElement{
 			{
-				AttributeName: aws.String("Artist"),
+				AttributeName: aws.String("LinkID"),
 				KeyType:       aws.String("HASH"),
 			},
-			{
-				AttributeName: aws.String("SongTitle"),
-				KeyType:       aws.String("RANGE"),
-			},
+			// {
+			// 	AttributeName: aws.String("LinkPath"),
+			// 	KeyType:       aws.String("RANGE"),
+			// },
 		},
-		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(5),
-			WriteCapacityUnits: aws.Int64(5),
-		},
+		BillingMode: aws.String(dynamodb.BillingModePayPerRequest),
+		// ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+		// 	ReadCapacityUnits:  aws.Int64(5),
+		// 	WriteCapacityUnits: aws.Int64(5),
+		// },
 		TableName: aws.String(tableName),
 	}
 

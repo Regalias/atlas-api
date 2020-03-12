@@ -12,7 +12,7 @@ type LinkModel struct {
 	LinkPath      string `json:"URI"`
 	TargetURL     string `json:"targetURL"`
 	// Audit info
-	Created        int64  `json:"created"`
+	CreatedTime    int64  `json:"createdTime"`
 	LastModified   int64  `json:"lastModified"`
 	LastModifiedBy string `json:"lastModifiedBy"`
 }

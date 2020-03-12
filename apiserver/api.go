@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-redis/redis/v7"
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/xid"
 	"github.com/rs/zerolog/hlog"
@@ -22,7 +21,7 @@ func (s *server) handleGetLink() http.HandlerFunc {
 		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkID)
 
 		m, err := s.dataProvider.GetLinkDetails(linkID)
-		if err == redis.Nil {
+		if err.Error() == "NotFound" {
 			sendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
 			return
 		} else if err != nil {
@@ -73,7 +72,7 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 			CanonicalName:  req.CanonicalName,
 			LinkPath:       req.LinkPath,
 			TargetURL:      req.TargetURL,
-			Created:        time.Now().Unix(),
+			CreatedTime:    time.Now().Unix(),
 			LastModified:   time.Now().Unix(),
 			LastModifiedBy: "some-user", // TODO
 		}
