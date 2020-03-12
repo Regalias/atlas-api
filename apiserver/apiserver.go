@@ -34,12 +34,12 @@ func Run(args []string) int {
 	// appLogger := *lgr
 
 	r := httprouter.New()
-	d, err := NewDataProvider(lgr)
+	d, err := NewDataProvider(lgr, "atlas-table-main")
 	if err != nil {
 		lgr.Fatal().Str("Error", err.Error()).Msg("Could not initialize database/cache providers")
 	}
 	// TODO: grab table name from config
-	if err := d.ensureTable("atlas-table-main"); err != nil {
+	if err := d.ensureTable(); err != nil {
 		lgr.Fatal().Str("Error", err.Error()).Msg("DDB table was not found and could not create required table")
 	}
 

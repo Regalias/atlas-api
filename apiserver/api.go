@@ -17,7 +17,6 @@ func (s *server) handleGetLink() http.HandlerFunc {
 		// Parse link
 		linkID := httprouter.ParamsFromContext(r.Context()).ByName("linkid")
 
-		// TODO: query db for link details
 		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkID)
 
 		m, err := s.dataProvider.GetLinkDetails(linkID)

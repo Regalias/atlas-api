@@ -13,9 +13,9 @@ func newAWSSession() *session.Session {
 }
 
 // ensureTable attempts to describe the requested table, and creates one if it doesn't exist
-func (dp *DataProvider) ensureTable(tableName string) error {
+func (dp *DataProvider) ensureTable() error {
 	_, err := dp.ddb.DescribeTable(&dynamodb.DescribeTableInput{
-		TableName: aws.String(tableName),
+		TableName: aws.String(dp.tableName),
 	})
 
 	if err != nil {
@@ -24,8 +24,8 @@ func (dp *DataProvider) ensureTable(tableName string) error {
 			case dynamodb.ErrCodeResourceNotFoundException:
 				dp.logger.Debug().Msg(dynamodb.ErrCodeResourceNotFoundException + ":" + aerr.Error())
 				// Table doesn't exist, lets create it
-				dp.logger.Info().Msg("Table " + tableName + " not found, creating it now...")
-				if err := dp.createTable(tableName); err != nil {
+				dp.logger.Info().Msg("Table " + dp.tableName + " not found, creating it now...")
+				if err := dp.createTable(dp.tableName); err != nil {
 					return err
 				}
 

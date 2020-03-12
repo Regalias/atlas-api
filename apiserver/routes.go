@@ -41,9 +41,9 @@ func (s *server) routes(appLogger *zerolog.Logger) {
 
 	// API Routes
 	s.router.Handler("GET", "/api/v1/link", c.ThenFunc(s.handleListLinks()))
-	s.router.Handler("GET", "/api/v1/link/:slink", c.ThenFunc(s.handleGetLink()))
+	s.router.Handler("GET", "/api/v1/link/:linkid", c.ThenFunc(s.handleGetLink()))
 	s.router.Handler("PUT", "/api/v1/link", c.ThenFunc(s.handleUpdateLink()))
 	s.router.Handler("POST", "/api/v1/link", c.ThenFunc(s.handleCreateLink()))
-	s.router.Handler("DELETE", "/api/v1/link", c.ThenFunc(s.handleDeleteLink()))
+	s.router.Handler("DELETE", "/api/v1/link/:linkid", c.ThenFunc(s.handleDeleteLink()))
 
 }
