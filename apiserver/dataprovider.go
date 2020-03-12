@@ -98,16 +98,16 @@ func (dp *DataProvider) CreateLink(linkmodel *LinkModel) error {
 }
 
 // DeleteLink deletes the link matching the link ID in the supplied model
-func (dp *DataProvider) DeleteLink(linkmodel *LinkModel) error {
+func (dp *DataProvider) DeleteLink(linkid string) error {
 	// DeleteItem is idempotent - need to specify a condition that it must exist to be successful
 	_, err := dp.ddb.DeleteItem(&dynamodb.DeleteItemInput{
 		TableName: aws.String(dp.tableName),
 		Key: map[string]*dynamodb.AttributeValue{
 			"LinkID": {
-				S: aws.String(linkmodel.LinkID),
+				S: aws.String(linkid),
 			},
 		},
-		ConditionExpression: aws.String("LinkID = " + linkmodel.LinkID),
+		ConditionExpression: aws.String("LinkID = " + linkid),
 	})
 
 	if err != nil {

@@ -14,7 +14,7 @@ import (
 
 func (s *server) handleGetLink() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Parse link
+		// Parse link id
 		linkID := httprouter.ParamsFromContext(r.Context()).ByName("linkid")
 
 		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkID)
@@ -85,6 +85,8 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 			return
 		}
 
+		// TODO: also push to redis cache server?
+
 		resp := &responseModel{
 			LinkID:        guid.String(),
 			CanonicalName: req.CanonicalName,
@@ -92,18 +94,31 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 			TargetURL:     req.TargetURL,
 		}
 
-		sendGenericResponse(w, r, "None", resp, 200)
+		sendGenericResponse(w, r, "None", resp, http.StatusCreated)
 	}
 }
 
 func (s *server) handleUpdateLink() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sendGenericResponse(w, r, "None", "ok", 200)
+		sendGenericResponse(w, r, "None", http.StatusText(http.StatusNotModified), http.StatusNotModified)
 	}
 }
 
 func (s *server) handleDeleteLink() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sendGenericResponse(w, r, "None", "ok", 200)
+		// Parse link id
+		linkID := httprouter.ParamsFromContext(r.Context()).ByName("linkid")
+
+		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkID)
+
+		err := s.dataProvider.DeleteLink(linkID)
+		if err.Error() == "NotFound" {
+			sendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
+			return
+		} else if err != nil {
+			throwISE(w, r)
+			return
+		}
+		sendGenericResponse(w, r, "None", http.StatusText(http.StatusOK), 200)
 	}
 }
