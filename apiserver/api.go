@@ -1,12 +1,10 @@
 package apiserver
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/rs/zerolog/hlog"
 )
 
 // Read
@@ -16,7 +14,7 @@ func (s *server) handleGetLink() http.HandlerFunc {
 		// Parse link id
 		linkPath := httprouter.ParamsFromContext(r.Context()).ByName("linkpath")
 
-		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkPath)
+		// hlog.FromRequest(r).Debug().Msg("Requested link: " + linkPath)
 
 		m, err := s.dataProvider.GetLinkDetails(linkPath)
 		if err.Error() == "NotFound" {
@@ -54,9 +52,6 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 			return
 		}
 
-		// Debug: remove
-		fmt.Printf("\n%+v\n", req)
-
 		// guid := xid.New()
 
 		newLink := &LinkModel{
@@ -69,15 +64,12 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 			LastModifiedBy: "some-user", // TODO
 			Enabled:        req.Enabled,
 		}
-		// Debug
-		// fmt.Printf("\n%+v\n", newLink)
 
 		if err := s.dataProvider.CreateLink(newLink); err != nil {
 			if err.Error() == "AlreadyExists" {
 				sendGenericResponse(w, r, "ParameterError", "Specfied LinkPath is already in use", 400)
 			} else {
 				s.logger.Error().Str("Error", err.Error()).Msg("Could not insert new entry")
-				// sendGenericResponse(w, r, http.StatusText(http.StatusInternalServerError), "None", http.StatusInternalServerError)
 				throwISE(w, r)
 			}
 			return
@@ -121,8 +113,6 @@ func (s *server) handleUpdateLink() http.HandlerFunc {
 			LastModified:   time.Now().Unix(),
 			LastModifiedBy: "some-user", // TODO
 			Enabled:        req.Enabled,
-			CreatedTime:    1337,
-			// Don't modify creation timestamp!
 		}
 
 		if err := s.dataProvider.UpdateLink(newLink); err != nil {
@@ -146,7 +136,7 @@ func (s *server) handleDeleteLink() http.HandlerFunc {
 		// Parse link id
 		linkPath := httprouter.ParamsFromContext(r.Context()).ByName("linkpath")
 
-		hlog.FromRequest(r).Debug().Msg("Requested link: " + linkPath)
+		// hlog.FromRequest(r).Debug().Msg("Requested link: " + linkPath)
 
 		err := s.dataProvider.DeleteLink(linkPath)
 		if err != nil {

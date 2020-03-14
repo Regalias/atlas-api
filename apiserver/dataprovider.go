@@ -81,7 +81,7 @@ func (dp *DataProvider) GetLinkDetails(linkpath string) (*LinkModel, error) {
 // CreateLink creates a new link from the supplied model
 func (dp *DataProvider) CreateLink(linkmodel *LinkModel) error {
 	link, err := dynamodbattribute.MarshalMap(*linkmodel)
-	// fmt.Printf("%+v\n", link)
+
 	if err != nil {
 		dp.logger.Error().Msg("DDB Marshal Failed: " + err.Error())
 		return err
@@ -172,17 +172,9 @@ func (dp *DataProvider) UpdateLink(linkmodel *LinkModel) error {
 		return errors.New("NoChange")
 	}
 
-	// link, err := dynamodbattribute.MarshalMap(*linkmodel)
-	// if err != nil {
-	// 	dp.logger.Error().Msg("DDB Marshal Failed: " + err.Error())
-	// 	return err
-	// }
-
 	link := map[string]*dynamodb.AttributeValue{
 		"LinkPath": {S: aws.String(linkmodel.LinkPath)},
 	}
-
-	// fmt.Printf("%+v\n", link)
 
 	input := &dynamodb.UpdateItemInput{
 		ExpressionAttributeNames: map[string]*string{

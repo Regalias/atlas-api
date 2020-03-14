@@ -31,7 +31,6 @@ func Run(args []string) int {
 		fmt.Printf("Oh noes! Something went horribly wrong!")
 		panic(err)
 	}
-	// appLogger := *lgr
 
 	r := httprouter.New()
 	d, err := NewDataProvider(lgr, "atlas-table-main")

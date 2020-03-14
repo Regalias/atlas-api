@@ -50,28 +50,12 @@ func (dp *DataProvider) createTable(tableName string) error {
 				AttributeName: aws.String("LinkPath"),
 				AttributeType: aws.String("S"),
 			},
-			// {
-			// 	AttributeName: aws.String("LinkPath"),
-			// 	AttributeType: aws.String("S"),
-			// },
-			// {
-			// 	AttributeName: aws.String("TargetURL"),
-			// 	AttributeType: aws.String("S"),
-			// },
-			// {
-			// 	AttributeName: aws.String("CreatedTime"),
-			// 	AttributeType: aws.String("N"),
-			// },
 		},
 		KeySchema: []*dynamodb.KeySchemaElement{
 			{
 				AttributeName: aws.String("LinkPath"),
 				KeyType:       aws.String("HASH"),
 			},
-			// {
-			// 	AttributeName: aws.String("LinkPath"),
-			// 	KeyType:       aws.String("RANGE"),
-			// },
 		},
 		BillingMode: aws.String(dynamodb.BillingModePayPerRequest),
 		// ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
