@@ -126,7 +126,18 @@ func (s *server) handleUpdateLink() http.HandlerFunc {
 				return
 			}
 		}
-		// TODO: update redis cache!
+
+		// TODO: update redis cache! (if exists?)
+		if err := s.cacheTaskHandler.submitTask(&cacheTask{
+			operation: setLink,
+			linkpath:  req.LinkPath,
+			linkdest:  req.TargetURL,
+		}); err != nil {
+			s.logger.Error().Msg("Couldn't submit cache set task: " + err.Error())
+			throwISE(w, r)
+			return
+		}
+
 		sendGenericResponse(w, r, "None", req, http.StatusOK)
 	}
 }
@@ -150,6 +161,15 @@ func (s *server) handleDeleteLink() http.HandlerFunc {
 		}
 
 		// TODO: Purge the redis cache!
+		if err := s.cacheTaskHandler.submitTask(&cacheTask{
+			operation: removeLink,
+			linkpath:  linkPath,
+		}); err != nil {
+			s.logger.Error().Msg("Couldn't submit cache deletion task: " + err.Error())
+			throwISE(w, r)
+			return
+		}
+
 		sendGenericResponse(w, r, "None", http.StatusText(http.StatusOK), 200)
 	}
 }

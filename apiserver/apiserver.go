@@ -13,11 +13,12 @@ import (
 )
 
 type server struct {
-	router       *httprouter.Router
-	validator    *validator.Validate
-	logger       *zerolog.Logger
-	http         *http.Server
-	dataProvider *DataProvider
+	router           *httprouter.Router
+	validator        *validator.Validate
+	logger           *zerolog.Logger
+	http             *http.Server
+	dataProvider     *DataProvider
+	cacheTaskHandler *cacheTaskHandler
 }
 
 // Run does magic things
@@ -42,6 +43,16 @@ func Run(args []string) int {
 		lgr.Fatal().Str("Error", err.Error()).Msg("DDB table was not found and could not create required table")
 	}
 
+	// Create cache and async task handler
+	lgr.Info().Msg("Starting cache worker...")
+	c, err := newCache("127.0.0.1", 6379, nil)
+	if err != nil {
+		lgr.Fatal().Msg(err.Error())
+	}
+	tq := newTaskQueue(100, lgr, c)
+	go tq.runWorker() // Start the worker
+	lgr.Info().Msg("Cache worker started")
+
 	// Create server context struct
 	s := server{
 		router:    r,
@@ -54,7 +65,8 @@ func Run(args []string) int {
 			Addr:              ":8080",
 			Handler:           r,
 		},
-		dataProvider: d,
+		dataProvider:     d,
+		cacheTaskHandler: tq,
 	}
 
 	s.routes(lgr)
