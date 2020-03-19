@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/regalias/atlas-api/cache"
+	"github.com/regalias/atlas-api/models"
+	"github.com/regalias/atlas-api/util"
 )
 
 // Read
@@ -18,19 +21,19 @@ func (s *server) handleGetLink() http.HandlerFunc {
 
 		m, err := s.dataProvider.GetLinkDetails(linkPath)
 		if err.Error() == "NotFound" {
-			sendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
+			util.SendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
 			return
 		} else if err != nil {
-			throwISE(w, r)
+			util.ThrowISE(w, r)
 			return
 		}
-		sendGenericResponse(w, r, "None", m, 200)
+		util.SendGenericResponse(w, r, "None", m, 200)
 	}
 }
 
 func (s *server) handleListLinks() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sendGenericResponse(w, r, "None", "ok", http.StatusNotImplemented)
+		util.SendGenericResponse(w, r, "None", "ok", http.StatusNotImplemented)
 	}
 }
 
@@ -54,7 +57,7 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 
 		// guid := xid.New()
 
-		newLink := &LinkModel{
+		newLink := &models.LinkModel{
 			// LinkID:         guid.String(),
 			LinkPath:       req.LinkPath,
 			CanonicalName:  req.CanonicalName,
@@ -67,10 +70,10 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 
 		if err := s.dataProvider.CreateLink(newLink); err != nil {
 			if err.Error() == "AlreadyExists" {
-				sendGenericResponse(w, r, "ParameterError", "Specfied LinkPath is already in use", 400)
+				util.SendGenericResponse(w, r, "ParameterError", "Specfied LinkPath is already in use", 400)
 			} else {
 				s.logger.Error().Str("Error", err.Error()).Msg("Could not insert new entry")
-				throwISE(w, r)
+				util.ThrowISE(w, r)
 			}
 			return
 		}
@@ -85,7 +88,7 @@ func (s *server) handleCreateLink() http.HandlerFunc {
 			Enabled:       req.Enabled,
 		}
 
-		sendGenericResponse(w, r, "None", resp, http.StatusCreated)
+		util.SendGenericResponse(w, r, "None", resp, http.StatusCreated)
 	}
 }
 
@@ -105,7 +108,7 @@ func (s *server) handleUpdateLink() http.HandlerFunc {
 			return
 		}
 
-		newLink := &LinkModel{
+		newLink := &models.LinkModel{
 			// LinkID:         req.LinkID,
 			CanonicalName:  req.CanonicalName,
 			LinkPath:       req.LinkPath,
@@ -117,28 +120,28 @@ func (s *server) handleUpdateLink() http.HandlerFunc {
 
 		if err := s.dataProvider.UpdateLink(newLink); err != nil {
 			if err.Error() == "NotFound" {
-				sendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
+				util.SendGenericResponse(w, r, "NotFound", http.StatusText(404), 404)
 				return
 			} else if err.Error() == "NoChange" {
-				sendGenericResponse(w, r, "None", http.StatusText(http.StatusNotModified), http.StatusNotModified)
+				util.SendGenericResponse(w, r, "None", http.StatusText(http.StatusNotModified), http.StatusNotModified)
 			} else if err != nil {
-				throwISE(w, r)
+				util.ThrowISE(w, r)
 				return
 			}
 		}
 
 		// TODO: update redis cache! (if exists?)
-		if err := s.cacheTaskHandler.submitTask(&cacheTask{
-			operation: setLink,
-			linkpath:  req.LinkPath,
-			linkdest:  req.TargetURL,
+		if err := s.cacheTaskHandler.SubmitTask(&cache.Task{
+			Operation: cache.SetLink,
+			Linkpath:  req.LinkPath,
+			Linkdest:  req.TargetURL,
 		}); err != nil {
 			s.logger.Error().Msg("Couldn't submit cache set task: " + err.Error())
-			throwISE(w, r)
+			util.ThrowISE(w, r)
 			return
 		}
 
-		sendGenericResponse(w, r, "None", req, http.StatusOK)
+		util.SendGenericResponse(w, r, "None", req, http.StatusOK)
 	}
 }
 
@@ -152,24 +155,24 @@ func (s *server) handleDeleteLink() http.HandlerFunc {
 		err := s.dataProvider.DeleteLink(linkPath)
 		if err != nil {
 			if err.Error() == "NotFound" {
-				sendGenericResponse(w, r, "NotFound", "Resource not found", 404)
+				util.SendGenericResponse(w, r, "NotFound", "Resource not found", 404)
 				return
 			} else if err != nil {
-				throwISE(w, r)
+				util.ThrowISE(w, r)
 				return
 			}
 		}
 
 		// TODO: Purge the redis cache!
-		if err := s.cacheTaskHandler.submitTask(&cacheTask{
-			operation: removeLink,
-			linkpath:  linkPath,
+		if err := s.cacheTaskHandler.SubmitTask(&cache.Task{
+			Operation: cache.RemoveLink,
+			Linkpath:  linkPath,
 		}); err != nil {
 			s.logger.Error().Msg("Couldn't submit cache deletion task: " + err.Error())
-			throwISE(w, r)
+			util.ThrowISE(w, r)
 			return
 		}
 
-		sendGenericResponse(w, r, "None", http.StatusText(http.StatusOK), 200)
+		util.SendGenericResponse(w, r, "None", http.StatusText(http.StatusOK), 200)
 	}
 }

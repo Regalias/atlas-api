@@ -1,4 +1,4 @@
-package apiserver
+package models
 
 type genericResponse struct {
 	Error   string `json:"error"`

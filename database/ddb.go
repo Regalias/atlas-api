@@ -1,4 +1,4 @@
-package apiserver
+package database
 
 import (
 	"errors"
@@ -9,33 +9,40 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/regalias/atlas-api/models"
 	"github.com/rs/zerolog"
 )
 
-// DataProvider contains methods to interact with the underlying database used for persistent storage
-type DataProvider struct {
+// DDBProvider contains methods to interact with the dynamodb database used for persistent storage
+// Implements the database.Provider interface
+type DDBProvider struct {
 	sess      *session.Session
 	ddb       *dynamodb.DynamoDB
 	logger    *zerolog.Logger
 	tableName string
 }
 
-// NewDataProvider creates and configures a new DataProvider object
-func NewDataProvider(logger *zerolog.Logger, tableName string) (*DataProvider, error) {
+// NewDDB creates and configures a new DynamoDB provider
+func NewDDB(logger *zerolog.Logger, tableName string) (*DDBProvider, error) {
 	sess := newAWSSession()
-	dp := &DataProvider{
+	ddb := &DDBProvider{
 		sess:      sess,
 		ddb:       dynamodb.New(sess),
 		logger:    logger,
 		tableName: tableName,
 	}
-	return dp, nil
+	return ddb, nil
+}
+
+// InitDatabase attempts to ensure the database exists
+func (ddb *DDBProvider) InitDatabase() error {
+	return ddb.ensureTable()
 }
 
 // GetLinkDetails fetches the link details based on a link path
-func (dp *DataProvider) GetLinkDetails(linkpath string) (*LinkModel, error) {
-	resp, err := dp.ddb.GetItem(&dynamodb.GetItemInput{
-		TableName: aws.String(dp.tableName),
+func (ddb *DDBProvider) GetLinkDetails(linkpath string) (*models.LinkModel, error) {
+	resp, err := ddb.ddb.GetItem(&dynamodb.GetItemInput{
+		TableName: aws.String(ddb.tableName),
 		Key: map[string]*dynamodb.AttributeValue{
 			"LinkPath": {
 				S: aws.String(linkpath),
@@ -46,28 +53,28 @@ func (dp *DataProvider) GetLinkDetails(linkpath string) (*LinkModel, error) {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeProvisionedThroughputExceededException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeProvisionedThroughputExceededException + ":" + aerr.Error())
 			case dynamodb.ErrCodeResourceNotFoundException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeResourceNotFoundException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeResourceNotFoundException + ":" + aerr.Error())
 			case dynamodb.ErrCodeRequestLimitExceeded:
-				dp.logger.Error().Msg(dynamodb.ErrCodeRequestLimitExceeded + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeRequestLimitExceeded + ":" + aerr.Error())
 			case dynamodb.ErrCodeInternalServerError:
-				dp.logger.Error().Msg(dynamodb.ErrCodeInternalServerError + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeInternalServerError + ":" + aerr.Error())
 			default:
-				dp.logger.Error().Msg(aerr.Error())
+				ddb.logger.Error().Msg(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			dp.logger.Error().Msg(err.Error())
+			ddb.logger.Error().Msg(err.Error())
 		}
 		return nil, err
 	}
 
-	lm := &LinkModel{}
+	lm := &models.LinkModel{}
 	err = dynamodbattribute.UnmarshalMap(resp.Item, &lm)
 	if err != nil {
-		dp.logger.Error().Msg("Failed to unmarshal Record: " + err.Error())
+		ddb.logger.Error().Msg("Failed to unmarshal Record: " + err.Error())
 		return nil, err
 	}
 
@@ -79,17 +86,17 @@ func (dp *DataProvider) GetLinkDetails(linkpath string) (*LinkModel, error) {
 }
 
 // CreateLink creates a new link from the supplied model
-func (dp *DataProvider) CreateLink(linkmodel *LinkModel) error {
+func (ddb *DDBProvider) CreateLink(linkmodel *models.LinkModel) error {
 	link, err := dynamodbattribute.MarshalMap(*linkmodel)
 
 	if err != nil {
-		dp.logger.Error().Msg("DDB Marshal Failed: " + err.Error())
+		ddb.logger.Error().Msg("DDB Marshal Failed: " + err.Error())
 		return err
 	}
 
-	_, err = dp.ddb.PutItem(&dynamodb.PutItemInput{
+	_, err = ddb.ddb.PutItem(&dynamodb.PutItemInput{
 		Item:                link,
-		TableName:           aws.String(dp.tableName),
+		TableName:           aws.String(ddb.tableName),
 		ConditionExpression: aws.String("attribute_not_exists(LinkPath)"), // must be unique
 	})
 
@@ -97,38 +104,38 @@ func (dp *DataProvider) CreateLink(linkmodel *LinkModel) error {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case dynamodb.ErrCodeConditionalCheckFailedException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeConditionalCheckFailedException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeConditionalCheckFailedException + ":" + aerr.Error())
 				// Not unique
 				return errors.New("AlreadyExists")
 			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeProvisionedThroughputExceededException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeProvisionedThroughputExceededException + ":" + aerr.Error())
 			case dynamodb.ErrCodeResourceNotFoundException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeResourceNotFoundException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeResourceNotFoundException + ":" + aerr.Error())
 			case dynamodb.ErrCodeItemCollectionSizeLimitExceededException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeItemCollectionSizeLimitExceededException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeItemCollectionSizeLimitExceededException + ":" + aerr.Error())
 			case dynamodb.ErrCodeTransactionConflictException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeTransactionConflictException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeTransactionConflictException + ":" + aerr.Error())
 			case dynamodb.ErrCodeRequestLimitExceeded:
-				dp.logger.Error().Msg(dynamodb.ErrCodeRequestLimitExceeded + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeRequestLimitExceeded + ":" + aerr.Error())
 			case dynamodb.ErrCodeInternalServerError:
-				dp.logger.Error().Msg(dynamodb.ErrCodeInternalServerError + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeInternalServerError + ":" + aerr.Error())
 			default:
-				dp.logger.Error().Msg("DDB PutItem Failed: " + aerr.Error())
+				ddb.logger.Error().Msg("DDB PutItem Failed: " + aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			dp.logger.Error().Msg("DDB PutItem Failed: " + err.Error())
+			ddb.logger.Error().Msg("DDB PutItem Failed: " + err.Error())
 		}
 	}
 	return err
 }
 
 // DeleteLink deletes the link matching the link path in the supplied model
-func (dp *DataProvider) DeleteLink(linkpath string) error {
+func (ddb *DDBProvider) DeleteLink(linkpath string) error {
 	// DeleteItem is idempotent - need to specify a condition that it must exist to be successful
-	_, err := dp.ddb.DeleteItem(&dynamodb.DeleteItemInput{
-		TableName: aws.String(dp.tableName),
+	_, err := ddb.ddb.DeleteItem(&dynamodb.DeleteItemInput{
+		TableName: aws.String(ddb.tableName),
 		Key: map[string]*dynamodb.AttributeValue{
 			"LinkPath": {
 				S: aws.String(linkpath),
@@ -148,26 +155,26 @@ func (dp *DataProvider) DeleteLink(linkpath string) error {
 			case dynamodb.ErrCodeConditionalCheckFailedException:
 				return errors.New("NotFound")
 			default:
-				dp.logger.Error().Msg("DDB DeleteItem Failed: " + aerr.Error())
+				ddb.logger.Error().Msg("DDB DeleteItem Failed: " + aerr.Error())
 				return err
 			}
 		} else {
-			dp.logger.Error().Msg("DDB DeleteItem Failed: " + err.Error())
+			ddb.logger.Error().Msg("DDB DeleteItem Failed: " + err.Error())
 		}
 	}
 	return err
 }
 
 // UpdateLink updates the existing link matching the link path in the supplied model
-func (dp *DataProvider) UpdateLink(linkmodel *LinkModel) error {
+func (ddb *DDBProvider) UpdateLink(linkmodel *models.LinkModel) error {
 
 	// Query the existing link to check for existance and differences
-	res, err := dp.GetLinkDetails(linkmodel.LinkPath)
+	res, err := ddb.GetLinkDetails(linkmodel.LinkPath)
 	if err != nil {
 		return err // pass back upstream error
 	}
 
-	if checkLinkModelsAreEqual(linkmodel, res) {
+	if models.CheckLinkModelsAreEqual(linkmodel, res) {
 		// Models are same, no changes required!
 		return errors.New("NoChange")
 	}
@@ -184,7 +191,7 @@ func (dp *DataProvider) UpdateLink(linkmodel *LinkModel) error {
 			"#LM":  aws.String("LastModified"),
 			"#LMB": aws.String("LastModifiedBy"),
 		},
-		TableName:        aws.String(dp.tableName),
+		TableName:        aws.String(ddb.tableName),
 		ReturnValues:     aws.String("NONE"),
 		UpdateExpression: aws.String("set #CN = :cn, #TU = :tu, #EN = :en, #LM = :lm, #LMB = :lmb"),
 		ExpressionAttributeValues: map[string]*dynamodb.AttributeValue{
@@ -211,33 +218,33 @@ func (dp *DataProvider) UpdateLink(linkmodel *LinkModel) error {
 		Key:                 link,
 	}
 
-	_, err = dp.ddb.UpdateItem(input)
+	_, err = ddb.ddb.UpdateItem(input)
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case dynamodb.ErrCodeConditionalCheckFailedException:
-				dp.logger.Debug().Msg(dynamodb.ErrCodeConditionalCheckFailedException + ":" + aerr.Error())
+				ddb.logger.Debug().Msg(dynamodb.ErrCodeConditionalCheckFailedException + ":" + aerr.Error())
 				// Item does not exist - we shouldn't get here as we already checked this before
 				return errors.New("NotFound")
 			case dynamodb.ErrCodeProvisionedThroughputExceededException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeProvisionedThroughputExceededException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeProvisionedThroughputExceededException + ":" + aerr.Error())
 			case dynamodb.ErrCodeResourceNotFoundException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeResourceNotFoundException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeResourceNotFoundException + ":" + aerr.Error())
 			case dynamodb.ErrCodeItemCollectionSizeLimitExceededException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeItemCollectionSizeLimitExceededException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeItemCollectionSizeLimitExceededException + ":" + aerr.Error())
 			case dynamodb.ErrCodeTransactionConflictException:
-				dp.logger.Error().Msg(dynamodb.ErrCodeTransactionConflictException + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeTransactionConflictException + ":" + aerr.Error())
 			case dynamodb.ErrCodeRequestLimitExceeded:
-				dp.logger.Error().Msg(dynamodb.ErrCodeRequestLimitExceeded + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeRequestLimitExceeded + ":" + aerr.Error())
 			case dynamodb.ErrCodeInternalServerError:
-				dp.logger.Error().Msg(dynamodb.ErrCodeInternalServerError + ":" + aerr.Error())
+				ddb.logger.Error().Msg(dynamodb.ErrCodeInternalServerError + ":" + aerr.Error())
 			default:
-				dp.logger.Error().Msg(aerr.Error())
+				ddb.logger.Error().Msg(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			dp.logger.Error().Msg(err.Error())
+			ddb.logger.Error().Msg(err.Error())
 		}
 		return err
 	}

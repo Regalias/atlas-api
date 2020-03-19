@@ -1,4 +1,4 @@
-package apiserver
+package database
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
@@ -14,7 +14,7 @@ func newAWSSession() *session.Session {
 }
 
 // ensureTable attempts to describe the requested table, and creates one if it doesn't exist
-func (dp *DataProvider) ensureTable() error {
+func (dp *DDBProvider) ensureTable() error {
 	_, err := dp.ddb.DescribeTable(&dynamodb.DescribeTableInput{
 		TableName: aws.String(dp.tableName),
 	})
@@ -42,7 +42,7 @@ func (dp *DataProvider) ensureTable() error {
 }
 
 // createTable creates the target DDB table with the required schema
-func (dp *DataProvider) createTable(tableName string) error {
+func (dp *DDBProvider) createTable(tableName string) error {
 	// TODO: configure created table options from config?
 	input := &dynamodb.CreateTableInput{
 		AttributeDefinitions: []*dynamodb.AttributeDefinition{

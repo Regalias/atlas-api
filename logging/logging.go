@@ -1,6 +1,7 @@
-package apiserver
+package logging
 
 import (
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -8,9 +9,9 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// initLogger configures the zerolog global options such as log level
+// New configures the zerolog global options such as log level
 // returns a zerolog.Logger
-func initLogger(level string) (*zerolog.Logger, error) {
+func New(level string, appname string, useConsole bool) (*zerolog.Logger, error) {
 	switch strings.ToLower(level) {
 	case "info":
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
@@ -31,12 +32,17 @@ func initLogger(level string) (*zerolog.Logger, error) {
 		return nil, err
 	}
 
-	// FOR DEBUG
-	stream := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
+	var stream io.Writer
+	if useConsole {
+		// FOR DEBUG
+		stream = zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
+	} else {
+		stream = os.Stdout
+	}
 
 	appLogger := zerolog.New(stream).With().
 		Timestamp().
-		Str("svc", "linker-api").
+		Str("svc", appname).
 		Str("host", host).
 		Logger()
 
