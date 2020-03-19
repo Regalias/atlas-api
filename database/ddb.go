@@ -104,7 +104,7 @@ func (ddb *DDBProvider) CreateLink(linkmodel *models.LinkModel) error {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case dynamodb.ErrCodeConditionalCheckFailedException:
-				ddb.logger.Error().Msg(dynamodb.ErrCodeConditionalCheckFailedException + ":" + aerr.Error())
+				ddb.logger.Debug().Msg(dynamodb.ErrCodeConditionalCheckFailedException + ":" + aerr.Error())
 				// Not unique
 				return errors.New("AlreadyExists")
 			case dynamodb.ErrCodeProvisionedThroughputExceededException:

@@ -72,7 +72,7 @@ func Run(args []string) int {
 			ReadHeaderTimeout: 20 * time.Second,
 			ReadTimeout:       1 * time.Minute,
 			WriteTimeout:      2 * time.Minute,
-			Addr:              ":8080",
+			Addr:              ":8081",
 			Handler:           r,
 		},
 		dataProvider:     d,

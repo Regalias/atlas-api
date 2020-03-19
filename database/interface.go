@@ -9,6 +9,7 @@ type Provider interface {
 	InitDatabase() error
 
 	// Getter
+	// Returns NotFound error if query return is empty, or operational errors
 	GetLinkDetails(linkpath string) (*models.LinkModel, error)
 
 	// TODO: list operation
