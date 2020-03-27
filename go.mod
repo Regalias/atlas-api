@@ -3,6 +3,7 @@ module github.com/regalias/atlas-api
 go 1.14
 
 require (
+	github.com/allegro/bigcache v1.2.1
 	github.com/aws/aws-sdk-go v1.29.22
 	github.com/go-playground/validator/v10 v10.2.0
 	github.com/go-redis/redis/v7 v7.2.0
